@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ICG Studio — Intermediate Code Generation</title>
+  <meta name="description" content="Compiler Design: Intermediate Code Generation Demo. Generates Three Address Code, Quadruples, Triples, and Indirect Triples from any expression."/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚙️</div>
+      <div class="logo-text">
+        <h1><span>ICG</span> Studio</h1>
+        <p>Compiler Design · Intermediate Code Generation</p>
+      </div>
+    </div>
+    <span class="badge">Phase 4 — IR Generation</span>
+  </header>
+
+  <!-- ── Main Grid ───────────────────────────────────────────── -->
+  <div class="main-grid">
+
+    <!-- ── Left Panel ─────────────────────────────────────────── -->
+    <div class="left-panel">
+
+      <!-- Input -->
+      <div class="card input-section">
+        <div class="card-title">🔢 Enter Expression</div>
+        <div class="input-label">
+          <span>Expression</span>
+          <span style="font-size:.68rem;color:var(--text-3)">supports + − * / % ^ || && ! == != &lt; &gt; &lt;= &gt;=</span>
+        </div>
+        <div class="input-wrap">
+          <input
+            id="expressionInput"
+            type="text"
+            placeholder="e.g.  a + b * c - d / e"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          />
+          <button class="btn-compile" id="compileBtn" onclick="compileExpression()">
+            Compile ▶
+          </button>
+        </div>
+        <div class="examples">
+          <span class="example-chip" onclick="useExample(this)">a + b * c</span>
+          <span class="example-chip" onclick="useExample(this)">(a + b) * (c - d)</span>
+          <span class="example-chip" onclick="useExample(this)">a * b + c * d - e</span>
+          <span class="example-chip" onclick="useExample(this)">-(a + b) ^ 2</span>
+          <span class="example-chip" onclick="useExample(this)">a &gt; b && c != d</span>
+          <span class="example-chip" onclick="useExample(this)">x1 + x2 * x3 / x4 % x5</span>
+        </div>
+      </div>
+
+      <!-- Stats Bar (hidden until compiled) -->
+      <div class="stats-bar" id="statsBar" style="display:none">
+        <div class="stat-pill purple">
+          <span>TAC Steps</span><span class="val" id="statTac">0</span>
+        </div>
+        <div class="stat-pill cyan">
+          <span>Quadruples</span><span class="val" id="statQuad">0</span>
+        </div>
+        <div class="stat-pill green">
+          <span>Triples</span><span class="val" id="statTri">0</span>
+        </div>
+        <div class="stat-pill orange">
+          <span>Indirect</span><span class="val" id="statInd">0</span>
+        </div>
+      </div>
+
+      <!-- Result Card -->
+      <div class="card" id="resultCard">
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tac"  onclick="switchTab('tac')">
+            <span class="dot"></span>Three Address Code
+          </button>
+          <button class="tab-btn" data-tab="quad" onclick="switchTab('quad')">
+            <span class="dot"></span>Quadruples
+          </button>
+          <button class="tab-btn" data-tab="tri"  onclick="switchTab('tri')">
+            <span class="dot"></span>Triples
+          </button>
+          <button class="tab-btn" data-tab="ind"  onclick="switchTab('ind')">
+            <span class="dot"></span>Indirect Triples
+          </button>
+        </div>
+
+        <!-- TAC Panel -->
+        <div class="tab-panel active" id="panel-tac">
+          <div class="ir-description">
+            <strong>Three Address Code (TAC)</strong> — Each instruction has at most one operator and uses temporary variables
+            (t₁, t₂ …) to hold intermediate results. Format: <code>result = operand₁ op operand₂</code>
+          </div>
+          <div id="tacOutput">
+            <div class="empty-state"><div class="icon">📄</div><p>Enter an expression and click <strong>Compile</strong></p></div>
+          </div>
+          <div class="table-wrap" id="tacTableWrap" style="display:none; margin-top:16px"></div>
+        </div>
+
+        <!-- Quadruples Panel -->
+        <div class="tab-panel" id="panel-quad">
+          <div class="ir-description cyan">
+            <strong>Quadruples</strong> — A four-field tuple: <code>(operator, arg1, arg2, result)</code>. The result field
+            explicitly stores the destination temporary variable, making it easy to use as a lookup table.
+          </div>
+          <div class="table-wrap" id="quadTableWrap">
+            <div class="empty-state"><div class="icon">⊞</div><p>Enter an expression and click <strong>Compile</strong></p></div>
+          </div>
+        </div>
+
+        <!-- Triples Panel -->
+        <div class="tab-panel" id="panel-tri">
+          <div class="ir-description green">
+            <strong>Triples</strong> — A three-field tuple: <code>(operator, arg1, arg2)</code>. No explicit result field —
+            the result is identified by its position (step number). References to earlier results use <code>(n)</code> notation.
+          </div>
+          <div class="table-wrap" id="triTableWrap">
+            <div class="empty-state"><div class="icon">⊟</div><p>Enter an expression and click <strong>Compile</strong></p></div>
+          </div>
+        </div>
+
+        <!-- Indirect Triples Panel -->
+        <div class="tab-panel" id="panel-ind">
+          <div class="ir-description orange">
+            <strong>Indirect Triples</strong> — Adds a <em>pointer array</em> that indexes into the triples table.
+            This allows code reordering (by changing the pointer array) without renumbering the triples themselves.
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+            <div>
+              <div class="card-title" style="margin-bottom:8px">📋 Pointer Array</div>
+              <div class="table-wrap" id="ptrTableWrap">
+                <div class="empty-state" style="padding:24px"><p>—</p></div>
+              </div>
+            </div>
+            <div>
+              <div class="card-title" style="margin-bottom:8px">📌 Triples Table</div>
+              <div class="table-wrap" id="indTriTableWrap">
+                <div class="empty-state" style="padding:24px"><p>—</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /resultCard -->
+    </div><!-- /left-panel -->
+
+    <!-- ── Sidebar ─────────────────────────────────────────────── -->
+    <div class="sidebar-sticky">
+      <div class="card">
+        <div class="card-title">🕘 Compilation History</div>
+        <div class="history-list" id="historyList">
+          <div class="no-history">No compilations yet</div>
+        </div>
+      </div>
+
+      <!-- DB Info card -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">🗄️ Database Status</div>
+        <div style="font-size:.78rem; color:var(--text-2); line-height:1.9">
+          <div>Host: <span style="color:var(--cyan); font-family:'JetBrains Mono',monospace">localhost</span></div>
+          <div>DB: <span style="color:var(--cyan); font-family:'JetBrains Mono',monospace">compiler_icg</span></div>
+          <div>Tables: <span id="dbTableCount" style="color:var(--green)">—</span></div>
+          <div style="margin-top:10px">
+            <button onclick="initDB()" style="
+              padding:7px 16px; border-radius:var(--radius-sm);
+              background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);
+              color:var(--green); font-size:.75rem; font-weight:600; cursor:pointer;
+              transition:all .2s; width:100%
+            ">⚡ Initialize / Reset DB</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-grid -->
+</div><!-- /app -->
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
