@@ -86,6 +86,9 @@ function buildTAC(ast) {
 function buildTACStrings(instructions) {
   return instructions.map(instr => {
     if (instr.op2 === null || instr.op2 === undefined) {
+      if (instr.operator === '=') {
+        return `${instr.result} = ${instr.op1}`;
+      }
       return `${instr.result} = ${instr.operator} ${instr.op1}`;
     }
     return `${instr.result} = ${instr.op1} ${instr.operator} ${instr.op2}`;

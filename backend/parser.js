@@ -39,7 +39,12 @@ const T = {
 // ─── Lexer ────────────────────────────────────────────────────────────────────
 class Lexer {
   constructor(source) {
-    this.src  = source.trim();
+    // Sanitize source: replace unicode mathematical characters with standard ASCII
+    this.src = source.trim()
+      .replace(/−/g, '-') // U+2212 Minus Sign
+      .replace(/[∗×]/g, '*') // U+2217 Asterisk Operator, U+00D7 Multiplication Sign
+      .replace(/÷/g, '/'); // U+00F7 Division Sign
+
     this.pos  = 0;
     this.tokens = [];
     this._tokenize();

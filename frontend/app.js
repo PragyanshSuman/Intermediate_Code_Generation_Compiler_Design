@@ -83,6 +83,8 @@ function renderTAC(tac) {
       let rhs = '';
       if (instr.op2 && instr.op2 !== '-') {
         rhs = `<span class="operand">${instr.op1}</span><span class="opr">${instr.operator}</span><span class="operand">${instr.op2}</span>`;
+      } else if (instr.operator === '=') {
+        rhs = `<span class="operand">${instr.op1}</span>`;
       } else {
         rhs = `<span class="opr">${instr.operator}</span> <span class="operand">${instr.op1}</span>`;
       }
