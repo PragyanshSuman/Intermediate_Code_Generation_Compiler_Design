@@ -10,7 +10,6 @@
 <body>
 <div class="app">
 
-  <!-- ── Header ─────────────────────────────────────────────── -->
   <header>
     <div class="logo">
       <div class="logo-icon">⚙️</div>
@@ -22,13 +21,10 @@
     <span class="badge">Phase 4 — IR Generation</span>
   </header>
 
-  <!-- ── Main Grid ───────────────────────────────────────────── -->
   <div class="main-grid">
 
-    <!-- ── Left Panel ─────────────────────────────────────────── -->
     <div class="left-panel">
 
-      <!-- Input -->
       <div class="card input-section">
         <div class="card-title">🔢 Enter Expression</div>
         <div class="input-label">
@@ -56,7 +52,6 @@
         </div>
       </div>
 
-      <!-- Stats Bar (hidden until compiled) -->
       <div class="stats-bar" id="statsBar" style="display:none">
         <div class="stat-pill purple">
           <span>TAC Steps</span><span class="val" id="statTac">0</span>
@@ -72,10 +67,8 @@
         </div>
       </div>
 
-      <!-- Result Card -->
       <div class="card" id="resultCard">
 
-        <!-- Tabs & Export -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
           <div class="tabs" style="margin-bottom:0; flex-grow:1; margin-right:16px;">
             <button class="tab-btn active" data-tab="tac"  onclick="switchTab('tac')">
@@ -103,7 +96,6 @@
           </div>
         </div>
 
-        <!-- TAC Panel -->
         <div class="tab-panel active" id="panel-tac">
           <div class="ir-description">
             <strong>Three Address Code (TAC)</strong> — Each instruction has at most one operator and uses temporary variables
@@ -125,7 +117,6 @@
           <div class="table-wrap" id="tacTableWrap" style="display:none; margin-top:16px"></div>
         </div>
 
-        <!-- Quadruples Panel -->
         <div class="tab-panel" id="panel-quad">
           <div class="ir-description cyan">
             <strong>Quadruples</strong> — A four-field tuple: <code>(operator, arg1, arg2, result)</code>. The result field
@@ -136,7 +127,6 @@
           </div>
         </div>
 
-        <!-- Triples Panel -->
         <div class="tab-panel" id="panel-tri">
           <div class="ir-description green">
             <strong>Triples</strong> — A three-field tuple: <code>(operator, arg1, arg2)</code>. No explicit result field —
