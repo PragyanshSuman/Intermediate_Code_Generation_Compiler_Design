@@ -100,15 +100,29 @@ function renderTAC(tac) {
   out.innerHTML = `<div class="tac-mono">${
     tac.map((instr, i) => {
       const delay = i * 60;
-      const lhs = `<span class="res">${instr.result}</span>`;
+      const tacStr = instr.tacString || '';
+
+      // Control flow lines — render as full-width monospace lines
+      const controlOps = ['LABEL', 'GOTO', 'ifFalse', 'param', 'return', 'call'];
+      if (controlOps.includes(instr.operator)) {
+        const isLabel  = instr.operator === 'LABEL';
+        const isJump   = instr.operator === 'GOTO' || instr.operator === 'ifFalse';
+        const color    = isLabel ? '#f59e0b' : isJump ? '#a78bfa' : '#67e8f9';
+        return `<div class="tac-line" style="animation-delay:${delay}ms">
+          <span class="ln">${String(i).padStart(2,'0')}:</span><span style="color:${color}; font-weight:600;">${escHtml(tacStr)}</span>
+        </div>`;
+      }
+
+      // Regular assignment instructions
+      const lhs = `<span class="res">${escHtml(String(instr.result ?? ''))}</span>`;
       const eql = `<span class="eql">=</span>`;
       let rhs = '';
       if (instr.op2 && instr.op2 !== '-') {
-        rhs = `<span class="operand">${instr.op1}</span><span class="opr">${instr.operator}</span><span class="operand">${instr.op2}</span>`;
+        rhs = `<span class="operand">${escHtml(String(instr.op1 ?? ''))}</span><span class="opr">${escHtml(instr.operator)}</span><span class="operand">${escHtml(String(instr.op2))}</span>`;
       } else if (instr.operator === '=') {
-        rhs = `<span class="operand">${instr.op1}</span>`;
+        rhs = `<span class="operand">${escHtml(String(instr.op1 ?? ''))}</span>`;
       } else {
-        rhs = `<span class="opr">${instr.operator}</span> <span class="operand">${instr.op1}</span>`;
+        rhs = `<span class="opr">${escHtml(instr.operator)}</span> <span class="operand">${escHtml(String(instr.op1 ?? ''))}</span>`;
       }
       return `<div class="tac-line" style="animation-delay:${delay}ms">
         <span class="ln">${String(i).padStart(2,'0')}:</span>${lhs} ${eql} ${rhs}
@@ -595,3 +609,18 @@ function formatDate(d) {
 
 // ─── Boot ─────────────────────────────────────────────────────
 loadHistory();
+
+// ─── Mode Switcher ────────────────────────────────────────────
+document.getElementById('modeSelect').addEventListener('change', function() {
+  const isSnippet = this.value === 'snippet';
+  document.getElementById('inputModeLabel').textContent    = isSnippet ? 'C Snippet' : 'Expression';
+  document.getElementById('inputModeHint').textContent     = isSnippet
+    ? 'supports: for, if/else, while, printf, return'
+    : 'supports: + − * / % ^ || && ! == != < > <= >=';
+  document.getElementById('expressionInput').setAttribute(
+    'placeholder',
+    isSnippet
+      ? 'e.g.  #include <stdio.h>\nint main() { ... }'
+      : 'e.g.  a + b * c - d / e'
+  );
+});

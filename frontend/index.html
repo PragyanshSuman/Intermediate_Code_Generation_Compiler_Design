@@ -49,12 +49,13 @@
           </div>
         </div>
         <div class="input-label">
-          <span>Expression</span>
-          <span style="font-size:.68rem;color:var(--text-3)">supports + − * / % ^ || && ! == != &lt; &gt; &lt;= &gt;=</span>
+          <span id="inputModeLabel">Expression</span>
+          <span id="inputModeHint" style="font-size:.68rem;color:var(--text-3)">supports + − * / % ^ || && ! == != &lt; &gt; &lt;= &gt;=</span>
         </div>
         <div class="input-wrap">
           <div
             id="expressionInput"
+            data-mode="expr"
             contenteditable="true"
             placeholder="e.g.  a + b * c - d / e"
             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"

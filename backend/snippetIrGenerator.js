@@ -155,11 +155,11 @@ function buildTAC(ast) {
 
 function buildTACStrings(instructions) {
   return instructions.map(instr => {
-    if (instr.operator === 'LABEL') return `${instr.result}:`;
-    if (instr.operator === 'GOTO') return `goto ${instr.result}`;
-    if (instr.operator === 'ifFalse') return `ifFalse ${instr.op1} goto ${instr.result}`;
-    if (instr.operator === 'param') return `param ${instr.op1}`;
-    if (instr.operator === 'call') return `${instr.result} = call ${instr.op1}, ${instr.op2}`;
+    if (instr.operator === 'LABEL') return `LABEL ${instr.result}`;
+    if (instr.operator === 'GOTO') return `GOTO ${instr.result}`;
+    if (instr.operator === 'ifFalse') return `ifFalse ${instr.op1} GOTO ${instr.result}`;
+    if (instr.operator === 'param') return `param "${instr.op1}"`;
+    if (instr.operator === 'call') return `${instr.result} = CALL ${instr.op1}, ${instr.op2}`;
     if (instr.operator === 'return') return `return ${instr.op1 || ''}`;
     
     if (instr.op2 === null || instr.op2 === undefined) {
