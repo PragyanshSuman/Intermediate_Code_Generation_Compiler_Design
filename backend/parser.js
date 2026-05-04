@@ -260,7 +260,8 @@ function parse(src) {
   if (!src || !src.trim()) throw new Error('Empty expression');
   const lexer  = new Lexer(src);
   const parser = new Parser(lexer);
-  return parser.parse();
+  const ast = parser.parse();
+  return { ast, tokens: lexer.tokens };
 }
 
 module.exports = { parse };

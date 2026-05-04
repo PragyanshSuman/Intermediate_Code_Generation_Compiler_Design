@@ -73,3 +73,44 @@ CREATE TABLE IF NOT EXISTS indirect_triples (
     FOREIGN KEY (session_id) REFERENCES sessions(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ─── Tokens ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tokens (
+  id          INT          NOT NULL AUTO_INCREMENT,
+  session_id  INT          NOT NULL,
+  token_index INT          NOT NULL,
+  type        VARCHAR(50)  NOT NULL,
+  value       VARCHAR(200) NOT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_token_session
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ─── Optimized TAC ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS optimized_tac (
+  id          INT          NOT NULL AUTO_INCREMENT,
+  session_id  INT          NOT NULL,
+  step        INT          NOT NULL,
+  result      VARCHAR(50)  NOT NULL,
+  op1         VARCHAR(50)  NOT NULL,
+  operator    VARCHAR(10)  NOT NULL,
+  op2         VARCHAR(50)  DEFAULT NULL,
+  tac_string  VARCHAR(200) NOT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_opt_tac_session
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ─── Assembly Code ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS assembly_code (
+  id          INT          NOT NULL AUTO_INCREMENT,
+  session_id  INT          NOT NULL,
+  line_index  INT          NOT NULL,
+  instruction VARCHAR(200) NOT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_assembly_session
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;

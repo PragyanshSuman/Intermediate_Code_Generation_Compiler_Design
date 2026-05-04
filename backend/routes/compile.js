@@ -7,6 +7,8 @@ const { parse }       = require('../parser');
 const { generateIR }  = require('../irGenerator');
 const snippetParser   = require('../snippetParser');
 const snippetIrGenerator = require('../snippetIrGenerator');
+const { optimizeTAC } = require('../optimizer');
+const { generateAssembly } = require('../codeGenerator');
 
 // ─── POST /api/compile ────────────────────────────────────────────────────────
 /**
@@ -20,10 +22,16 @@ router.post('/compile', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Expression is required' });
   }
 
-  let ast, ir;
+  let ast, ir, tokens, optimizedTac, optimizedTacStrings, assembly;
   try {
-    ast = parse(expression.trim());
+    const parsed = parse(expression.trim());
+    ast = parsed.ast;
+    tokens = parsed.tokens;
     ir  = generateIR(ast);
+    const opt = optimizeTAC(ir.tac);
+    optimizedTac = opt.optimizedTac;
+    optimizedTacStrings = opt.optimizedTacStrings;
+    assembly = generateAssembly(optimizedTac);
   } catch (err) {
     return res.status(422).json({ success: false, error: `Parse error: ${err.message}` });
   }
@@ -84,11 +92,28 @@ router.post('/compile', async (req, res) => {
       );
     }
 
+    
+    for (let i = 0; i < tokens.length; i++) {
+      await conn.execute('INSERT INTO tokens (session_id, token_index, type, value) VALUES (?, ?, ?, ?)', [sessionId, i, tokens[i].type, tokens[i].value]);
+    }
+    for (const instr of optimizedTac) {
+      await conn.execute('INSERT INTO optimized_tac (session_id, step, result, op1, operator, op2, tac_string) VALUES (?, ?, ?, ?, ?, ?, ?)', [sessionId, instr.step, instr.result ?? '-', instr.op1 ?? '-', instr.operator, instr.op2 ?? null, optimizedTacStrings[instr.step] || '']);
+    }
+    for (let i = 0; i < assembly.length; i++) {
+      await conn.execute('INSERT INTO assembly_code (session_id, line_index, instruction) VALUES (?, ?, ?)', [sessionId, i, assembly[i]]);
+    }
+
     await conn.commit();
 
     return res.json({
       success: true,
       sessionId,
+      tokens,
+      optimizedTac: optimizedTac.map((instr, i) => ({ step: instr.step, result: instr.result ?? '-', op1: instr.op1 ?? '-', operator: instr.operator, op2: instr.op2 ?? '-', tacString: optimizedTacStrings[i] || '' })),
+      assembly,
+      tokens,
+      optimizedTac: optimizedTac.map((instr, i) => ({ step: instr.step, result: instr.result ?? '-', op1: instr.op1 ?? '-', operator: instr.operator, op2: instr.op2 ?? '-', tacString: optimizedTacStrings[i] || '' })),
+      assembly,
       expression: expression.trim(),
       ast,
       tac:            ir.tac.map((instr, i) => ({
@@ -123,10 +148,16 @@ router.post('/compile-snippet', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Expression is required' });
   }
 
-  let ast, ir;
+  let ast, ir, tokens, optimizedTac, optimizedTacStrings, assembly;
   try {
-    ast = snippetParser.parse(expression.trim());
+    const parsed = snippetParser.parse(expression.trim());
+    ast = parsed.ast;
+    tokens = parsed.tokens;
     ir  = snippetIrGenerator.generateIR(ast);
+    const opt = optimizeTAC(ir.tac);
+    optimizedTac = opt.optimizedTac;
+    optimizedTacStrings = opt.optimizedTacStrings;
+    assembly = generateAssembly(optimizedTac);
   } catch (err) {
     return res.status(422).json({ success: false, error: `Parse error: ${err.message}` });
   }
@@ -176,11 +207,25 @@ router.post('/compile-snippet', async (req, res) => {
       );
     }
 
+    
+    for (let i = 0; i < tokens.length; i++) {
+      await conn.execute('INSERT INTO tokens (session_id, token_index, type, value) VALUES (?, ?, ?, ?)', [sessionId, i, tokens[i].type, tokens[i].value]);
+    }
+    for (const instr of optimizedTac) {
+      await conn.execute('INSERT INTO optimized_tac (session_id, step, result, op1, operator, op2, tac_string) VALUES (?, ?, ?, ?, ?, ?, ?)', [sessionId, instr.step, instr.result ?? '-', instr.op1 ?? '-', instr.operator, instr.op2 ?? null, optimizedTacStrings[instr.step] || '']);
+    }
+    for (let i = 0; i < assembly.length; i++) {
+      await conn.execute('INSERT INTO assembly_code (session_id, line_index, instruction) VALUES (?, ?, ?)', [sessionId, i, assembly[i]]);
+    }
+
     await conn.commit();
 
     return res.json({
       success: true,
       sessionId,
+      tokens,
+      optimizedTac: optimizedTac.map((instr, i) => ({ step: instr.step, result: instr.result ?? '-', op1: instr.op1 ?? '-', operator: instr.operator, op2: instr.op2 ?? '-', tacString: optimizedTacStrings[i] || '' })),
+      assembly,
       expression: expression.trim(),
       ast,
       tac: ir.tac.map((instr, i) => ({
@@ -241,12 +286,18 @@ router.get('/session/:id', async (req, res) => {
     const [quads]   = await pool.execute('SELECT * FROM quadruples          WHERE session_id = ? ORDER BY step', [id]);
     const [triples] = await pool.execute('SELECT * FROM triples             WHERE session_id = ? ORDER BY step', [id]);
     const [indirect]= await pool.execute('SELECT * FROM indirect_triples    WHERE session_id = ? ORDER BY pointer_index', [id]);
+    const [tokens]  = await pool.execute('SELECT * FROM tokens              WHERE session_id = ? ORDER BY token_index', [id]);
+    const [optTac]  = await pool.execute('SELECT * FROM optimized_tac       WHERE session_id = ? ORDER BY step', [id]);
+    const [asm]     = await pool.execute('SELECT * FROM assembly_code       WHERE session_id = ? ORDER BY line_index', [id]);
 
     return res.json({
       success: true,
       sessionId: id,
       expression: session.expression,
       createdAt:  session.created_at,
+      tokens,
+      optimizedTac: optTac.map(r => ({ step: r.step, result: r.result, op1: r.op1, operator: r.operator, op2: r.op2 ?? '-', tacString: r.tac_string })),
+      assembly: asm.map(r => r.instruction),
       tac:     tac.map(r => ({
         step: r.step, result: r.result, op1: r.op1,
         operator: r.operator, op2: r.op2 ?? '-', tacString: r.tac_string,

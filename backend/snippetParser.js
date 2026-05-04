@@ -393,7 +393,8 @@ class Parser {
 function parse(src) {
   const l = new Lexer(src);
   const p = new Parser(l);
-  return p.parse();
+  const ast = p.parse();
+  return { ast, tokens: l.tokens };
 }
 
 module.exports = { parse };

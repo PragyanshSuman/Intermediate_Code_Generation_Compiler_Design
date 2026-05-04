@@ -88,6 +88,9 @@ function renderResults(data) {
   renderTriples(data.triples);
   renderIndirectTriples(data.indirectTriples);
   if (data.ast) renderAST(data.ast);
+  if (data.tokens) renderTokens(data.tokens);
+  if (data.optimizedTac) renderOptimizedTAC(data.optimizedTac);
+  if (data.assembly) renderAssembly(data.assembly);
 
   document.getElementById('stepControls').style.display = data.tac.length > 0 ? 'flex' : 'none';
   showAllSteps();
@@ -241,6 +244,14 @@ function getActiveTable() {
     title = 'Indirect Triples';
     headers = ['Pointer Index', 'Triple Index'];
     rows = currentData.indirectTriples.pointerArray.map(r => [r.pointer_index, r.triple_index]);
+  } else if (tab === 'tokens') {
+    title = 'Lexical Tokens';
+    headers = ['Index', 'Type', 'Value'];
+    rows = currentData.tokens.map((r, i) => [i, r.type, r.value]);
+  } else if (tab === 'optTac') {
+    title = 'Optimized Three Address Code';
+    headers = ['Step', 'Result', 'Operand 1', 'Operator', 'Operand 2'];
+    rows = currentData.optimizedTac.map(r => [r.step, r.result, r.op1, r.operator, r.op2]);
   } else if (tab === 'ast') {
     showToast('Cannot export AST to CSV/PDF', 'error');
     return null;
@@ -611,6 +622,84 @@ function formatDate(d) {
 
 // ─── Boot ─────────────────────────────────────────────────────
 loadHistory();
+
+
+
+// ─── Tokens ───────────────────────────────────────────────────
+function renderTokens(tokens) {
+  document.getElementById('tokensTableWrap').innerHTML = buildTable(
+    ['#', 'Type', 'Value'],
+    tokens.map((r, i) => [
+      '<span class="step-badge">' + i + '</span>',
+      '<span class="op-chip" style="background:rgba(59,130,246,0.2);color:#60a5fa;">' + r.type + '</span>',
+      escHtml(r.value),
+    ]),
+    i => i * 10
+  );
+}
+
+// ─── Optimized TAC ────────────────────────────────────────────
+function renderOptimizedTAC(tac) {
+  const out = document.getElementById('optTacOutput');
+  const tableWrap = document.getElementById('optTacTableWrap');
+
+  out.innerHTML = '<div class="tac-mono">' +
+    tac.map((instr, i) => {
+      const delay = i * 60;
+      const tacStr = instr.tacString || '';
+
+      const controlOps = ['LABEL', 'GOTO', 'ifFalse', 'param', 'return', 'call'];
+      if (controlOps.includes(instr.operator)) {
+        const isLabel  = instr.operator === 'LABEL';
+        const isJump   = instr.operator === 'GOTO' || instr.operator === 'ifFalse';
+        const color    = isLabel ? '#f59e0b' : isJump ? '#a78bfa' : '#67e8f9';
+        return '<div class="tac-line" style="animation-delay:' + delay + 'ms">' +
+          '<span class="ln">' + String(i).padStart(2,'0') + ':</span><span style="color:' + color + '; font-weight:600;">' + escHtml(tacStr) + '</span>' +
+        '</div>';
+      }
+
+      const lhs = '<span class="res">' + escHtml(String(instr.result ?? '')) + '</span>';
+      const eql = '<span class="eql">=</span>';
+      let rhs = '';
+      if (instr.op2 && instr.op2 !== '-') {
+        rhs = '<span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span><span class="opr">' + escHtml(instr.operator) + '</span><span class="operand">' + escHtml(String(instr.op2)) + '</span>';
+      } else if (instr.operator === '=') {
+        rhs = '<span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span>';
+      } else {
+        rhs = '<span class="opr">' + escHtml(instr.operator) + '</span> <span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span>';
+      }
+      return '<div class="tac-line" style="animation-delay:' + delay + 'ms">' +
+        '<span class="ln">' + String(i).padStart(2,'0') + ':</span>' + lhs + ' ' + eql + ' ' + rhs +
+      '</div>';
+    }).join('') + '</div>';
+
+  tableWrap.style.display = 'block';
+  tableWrap.innerHTML = buildTable(
+    ['#', 'Result', 'Operand 1', 'Operator', 'Operand 2'],
+    tac.map((r, i) => [
+      '<span class="step-badge">' + r.step + '</span>',
+      '<span class="result-cell">' + r.result + '</span>',
+      r.op1,
+      '<span class="op-chip" style="background:rgba(234,179,8,0.2);color:#facc15;">' + r.operator + '</span>',
+      r.op2 || '—',
+    ]),
+    i => i * 60
+  );
+}
+
+// ─── Assembly ─────────────────────────────────────────────────
+function renderAssembly(asm) {
+  const out = document.getElementById('asmOutput');
+  out.innerHTML = asm.map((line, i) => {
+    let color = '#e2e8f0';
+    if (line.trim().startsWith(';')) color = '#64748b'; // comment
+    else if (line.trim().endsWith(':')) color = '#f59e0b'; // label
+    else if (line.trim().startsWith('MOV')) color = '#38bdf8';
+    else if (['ADD', 'SUB', 'IMUL', 'IDIV'].some(op => line.trim().startsWith(op))) color = '#4ade80';
+    else if (['JMP', 'JE', 'JNE'].some(op => line.trim().startsWith(op))) color = '#a78bfa';
+    return '<div style="color:' + color + ';">' + escHtml(line) + '</div>';
+  }).join('');
+}
 
 // ─── Mode Switcher ────────────────────────────────────────────
 document.getElementById('modeSelect').addEventListener('change', function() {
