@@ -25,9 +25,10 @@ function useExample(el) {
 
 // ─── Compile ─────────────────────────────────────────────────
 
-// Enter key
+// Enter key — only auto-submit in Expression mode
 document.getElementById('expressionInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
+  const mode = document.getElementById('modeSelect').value;
+  if (e.key === 'Enter' && mode !== 'snippet') {
     e.preventDefault();
     compileExpression();
   }
@@ -35,7 +36,8 @@ document.getElementById('expressionInput').addEventListener('keydown', e => {
 
 async function compileExpression() {
   const exprBox = document.getElementById('expressionInput');
-  const expr = exprBox.textContent.trim();
+  // Use innerText to preserve newlines in Snippet mode (textContent collapses them)
+  const expr = (exprBox.innerText || exprBox.textContent).trim();
   if (!expr) { showToast('Please enter an expression', 'error'); return; }
 
   const btn = document.getElementById('compileBtn');
@@ -617,10 +619,17 @@ document.getElementById('modeSelect').addEventListener('change', function() {
   document.getElementById('inputModeHint').textContent     = isSnippet
     ? 'supports: for, if/else, while, printf, return'
     : 'supports: + − * / % ^ || && ! == != < > <= >=';
-  document.getElementById('expressionInput').setAttribute(
+  const inputBox = document.getElementById('expressionInput');
+  inputBox.setAttribute(
     'placeholder',
     isSnippet
-      ? 'e.g.  #include <stdio.h>\nint main() { ... }'
+      ? '#include <stdio.h>\nint main() {\n    // your code here\n    return 0;\n}'
       : 'e.g.  a + b * c - d / e'
   );
+  // Resize input box for snippet mode
+  inputBox.style.minHeight  = isSnippet ? '180px' : '48px';
+  inputBox.style.fontFamily = isSnippet ? "'Courier New', monospace" : "var(--font-mono, monospace)";
+  inputBox.style.fontSize   = isSnippet ? '0.82rem' : '';
+  inputBox.style.lineHeight = isSnippet ? '1.6' : '';
+  inputBox.style.whiteSpace = isSnippet ? 'pre-wrap' : 'pre';
 });
