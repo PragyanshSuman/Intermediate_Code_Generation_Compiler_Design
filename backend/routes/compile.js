@@ -5,6 +5,8 @@ const router  = express.Router();
 const { pool }        = require('../db');
 const { parse }       = require('../parser');
 const { generateIR }  = require('../irGenerator');
+const snippetParser   = require('../snippetParser');
+const snippetIrGenerator = require('../snippetIrGenerator');
 
 // ─── POST /api/compile ────────────────────────────────────────────────────────
 /**
@@ -103,6 +105,95 @@ router.post('/compile', async (req, res) => {
         pointerArray: ir.indirectTriples.pointerArray,
         triples:      ir.indirectTriples.triples,
       },
+    });
+  } catch (dbErr) {
+    await conn.rollback();
+    console.error('DB error:', dbErr);
+    return res.status(500).json({ success: false, error: 'Database error: ' + dbErr.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ─── POST /api/compile-snippet ───────────────────────────────────────────────
+router.post('/compile-snippet', async (req, res) => {
+  const { expression } = req.body;
+
+  if (!expression || !expression.trim()) {
+    return res.status(400).json({ success: false, error: 'Expression is required' });
+  }
+
+  let ast, ir;
+  try {
+    ast = snippetParser.parse(expression.trim());
+    ir  = snippetIrGenerator.generateIR(ast);
+  } catch (err) {
+    return res.status(422).json({ success: false, error: `Parse error: ${err.message}` });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [sessResult] = await conn.execute(
+      'INSERT INTO sessions (expression) VALUES (?)',
+      [expression.trim()]
+    );
+    const sessionId = sessResult.insertId;
+
+    for (const instr of ir.tac) {
+      await conn.execute(
+        `INSERT INTO three_address_code
+           (session_id, step, result, op1, operator, op2, tac_string)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sessionId, instr.step, instr.result ?? '-', instr.op1 ?? '-', instr.operator, instr.op2 ?? null, ir.tacStrings[instr.step],
+        ]
+      );
+    }
+
+    for (const q of ir.quadruples) {
+      await conn.execute(
+        `INSERT INTO quadruples (session_id, step, operator, arg1, arg2, result)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [sessionId, q.step, q.operator, q.arg1, q.arg2, q.result]
+      );
+    }
+
+    for (const t of ir.triples) {
+      await conn.execute(
+        `INSERT INTO triples (session_id, step, operator, arg1, arg2)
+         VALUES (?, ?, ?, ?, ?)`,
+        [sessionId, t.step, t.operator, t.arg1, t.arg2]
+      );
+    }
+
+    for (const p of ir.indirectTriples.pointerArray) {
+      await conn.execute(
+        `INSERT INTO indirect_triples (session_id, pointer_index, triple_index)
+         VALUES (?, ?, ?)`,
+        [sessionId, p.pointer_index, p.triple_index]
+      );
+    }
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      sessionId,
+      expression: expression.trim(),
+      ast,
+      tac: ir.tac.map((instr, i) => ({
+        step: instr.step,
+        result: instr.result ?? '-',
+        op1: instr.op1 ?? '-',
+        operator: instr.operator,
+        op2: instr.op2 ?? '-',
+        tacString: ir.tacStrings[i],
+      })),
+      quadruples: ir.quadruples,
+      triples: ir.triples,
+      indirectTriples: ir.indirectTriples,
     });
   } catch (dbErr) {
     await conn.rollback();

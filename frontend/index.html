@@ -26,7 +26,28 @@
     <div class="left-panel">
 
       <div class="card input-section">
-        <div class="card-title">🔢 Enter Expression</div>
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+          <span style="font-size: .8rem;">🔢 Enter Input</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:.75rem; color:var(--text-2); font-weight:600;">Mode:</span>
+            <select id="modeSelect" style="
+              background: rgba(139,92,246,0.15); 
+              border: 1px solid var(--purple); 
+              color: var(--text-1); 
+              border-radius: 8px; 
+              padding: 8px 12px; 
+              font-size: .8rem; 
+              font-weight: 600; 
+              outline: none; 
+              cursor: pointer;
+              box-shadow: 0 0 15px rgba(139,92,246,0.2);
+              font-family: 'Inter', sans-serif;
+            ">
+              <option value="expr" style="background:#07070f; color:#fff;">Expression Mode</option>
+              <option value="snippet" style="background:#07070f; color:#fff;">C Snippet Mode</option>
+            </select>
+          </div>
+        </div>
         <div class="input-label">
           <span>Expression</span>
           <span style="font-size:.68rem;color:var(--text-3)">supports + − * / % ^ || && ! == != &lt; &gt; &lt;= &gt;=</span>

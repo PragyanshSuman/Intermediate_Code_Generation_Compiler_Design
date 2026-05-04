@@ -43,7 +43,10 @@ async function compileExpression() {
   btn.innerHTML = '<span class="spinner"></span> Compiling…';
 
   try {
-    const res  = await fetch(`${API}/compile`, {
+    const mode = document.getElementById('modeSelect').value;
+    const endpoint = mode === 'snippet' ? '/compile-snippet' : '/compile';
+
+    const res  = await fetch(`${API}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ expression: expr }),
@@ -420,6 +423,28 @@ function renderAST(astRoot) {
       const child = buildTree(node.inner);
       if (child) treeNode.children = [child];
       treeNode.node.value = '( )';
+    } else if (node.type === 'Program' || node.type === 'Block') {
+      treeNode.children = node.body.map(buildTree).filter(Boolean);
+    } else if (node.type === 'Function') {
+      treeNode.children = [buildTree(node.body)].filter(Boolean);
+      treeNode.node.value = node.name;
+    } else if (node.type === 'ExprStmt') {
+      treeNode.children = [buildTree(node.expr)].filter(Boolean);
+    } else if (node.type === 'VarDecl') {
+      treeNode.children = node.decls.map(d => buildTree(d.init)).filter(Boolean);
+      treeNode.node.value = node.decls.map(d => d.id).join(',');
+    } else if (node.type === 'PostfixOp') {
+      treeNode.children = [buildTree(node.operand)].filter(Boolean);
+      treeNode.node.value = node.op;
+    } else if (node.type === 'FunctionCall') {
+      treeNode.children = node.args.map(buildTree).filter(Boolean);
+      treeNode.node.value = node.name;
+    } else if (node.type === 'IfElse') {
+      treeNode.children = [buildTree(node.cond), buildTree(node.trueBranch), buildTree(node.falseBranch)].filter(Boolean);
+    } else if (node.type === 'ForLoop') {
+      treeNode.children = [buildTree(node.init), buildTree(node.cond), buildTree(node.inc), buildTree(node.body)].filter(Boolean);
+    } else if (node.type === 'Return') {
+      treeNode.children = [buildTree(node.expr)].filter(Boolean);
     }
     
     if (treeNode.children.length === 0) {
