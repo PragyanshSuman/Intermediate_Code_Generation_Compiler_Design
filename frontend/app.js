@@ -5,6 +5,10 @@
 
 const API = 'http://localhost:3001/api';
 let currentSessionId = null;
+let currentData = null;
+let stepTimer = null;
+let currentStep = 0;
+let totalSteps = 0;
 
 // ─── Tab Switching ────────────────────────────────────────────
 function switchTab(name) {
@@ -14,13 +18,35 @@ function switchTab(name) {
 
 // ─── Use Example ─────────────────────────────────────────────
 function useExample(el) {
-  document.getElementById('expressionInput').value = el.textContent.trim();
-  document.getElementById('expressionInput').focus();
+  const input = document.getElementById('expressionInput');
+  input.textContent = el.textContent.trim();
+  input.focus();
 }
 
 // ─── Compile ─────────────────────────────────────────────────
+document.getElementById('expressionInput').addEventListener('input', function() {
+  if (this.querySelector('.error-highlight')) {
+    this.textContent = this.textContent;
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(this);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
+// Enter key
+document.getElementById('expressionInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    compileExpression();
+  }
+});
+
 async function compileExpression() {
-  const expr = document.getElementById('expressionInput').value.trim();
+  const exprBox = document.getElementById('expressionInput');
+  const expr = exprBox.textContent.trim();
   if (!expr) { showToast('Please enter an expression', 'error'); return; }
 
   const btn = document.getElementById('compileBtn');
@@ -35,9 +61,14 @@ async function compileExpression() {
     });
     const data = await res.json();
 
-    if (!data.success) { showToast(data.error, 'error'); return; }
+    if (!data.success) { 
+      showToast(data.error, 'error'); 
+      highlightError(exprBox, expr, data.error);
+      return; 
+    }
 
     currentSessionId = data.sessionId;
+    currentData = data;
     renderResults(data);
     showToast(`✅ Compiled! Session #${data.sessionId} saved to DB`, 'success');
     loadHistory();
@@ -49,13 +80,22 @@ async function compileExpression() {
   }
 }
 
-// Enter key
-document.getElementById('expressionInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') compileExpression();
-});
+function highlightError(el, text, errorMsg) {
+  let match = errorMsg.match(/position (\d+)/);
+  if (match) {
+    const pos = parseInt(match[1], 10);
+    const before = escHtml(text.substring(0, pos));
+    const char = escHtml(text.substring(pos, pos + 1) || ' ');
+    const after = escHtml(text.substring(pos + 1));
+    el.innerHTML = `${before}<span class="error-highlight" data-error="${escHtml(errorMsg)}">${char}</span>${after}`;
+  } else {
+    el.innerHTML = `<span class="error-highlight" data-error="${escHtml(errorMsg)}">${escHtml(text)}</span>`;
+  }
+}
 
 // ─── Render Results ───────────────────────────────────────────
 function renderResults(data) {
+  currentData = data;
   // Stats
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('statTac').textContent  = data.tac.length;
@@ -67,6 +107,10 @@ function renderResults(data) {
   renderQuadruples(data.quadruples);
   renderTriples(data.triples);
   renderIndirectTriples(data.indirectTriples);
+  if (data.ast) renderAST(data.ast);
+
+  document.getElementById('stepControls').style.display = data.tac.length > 0 ? 'flex' : 'none';
+  showAllSteps();
 }
 
 // ─── TAC ──────────────────────────────────────────────────────
@@ -175,6 +219,284 @@ function buildTable(headers, rows, delayFn) {
   return `<table>${thead}${tbody}</table>`;
 }
 
+// ─── Export ───────────────────────────────────────────────────
+function getActiveTable() {
+  const activeTabBtn = document.querySelector('.tab-btn.active');
+  const tab = activeTabBtn ? activeTabBtn.dataset.tab : 'tac';
+  let title = 'Table';
+  let headers = [];
+  let rows = [];
+
+  if (!currentData) return null;
+
+  if (tab === 'tac') {
+    title = 'Three Address Code';
+    headers = ['Step', 'Result', 'Operand 1', 'Operator', 'Operand 2'];
+    rows = currentData.tac.map(r => [r.step, r.result, r.op1, r.operator, r.op2]);
+  } else if (tab === 'quad') {
+    title = 'Quadruples';
+    headers = ['Step', 'Operator', 'Arg 1', 'Arg 2', 'Result'];
+    rows = currentData.quadruples.map(r => [r.step, r.operator, r.arg1, r.arg2, r.result]);
+  } else if (tab === 'tri') {
+    title = 'Triples';
+    headers = ['Step', 'Operator', 'Arg 1', 'Arg 2'];
+    rows = currentData.triples.map(r => [r.step, r.operator, r.arg1, r.arg2]);
+  } else if (tab === 'ind') {
+    title = 'Indirect Triples';
+    headers = ['Pointer Index', 'Triple Index'];
+    rows = currentData.indirectTriples.pointerArray.map(r => [r.pointer_index, r.triple_index]);
+  } else if (tab === 'ast') {
+    showToast('Cannot export AST to CSV/PDF', 'error');
+    return null;
+  }
+  return { title, headers, rows };
+}
+
+function exportCSV() {
+  const tableData = getActiveTable();
+  if (!tableData) return;
+  
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += tableData.headers.join(",") + "\r\n";
+  tableData.rows.forEach(rowArray => {
+    const row = rowArray.map(item => `"${String(item).replace(/"/g, '""')}"`).join(",");
+    csvContent += row + "\r\n";
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `${tableData.title.replace(/\\s+/g, '_')}_${currentSessionId}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function exportPDF() {
+  const tableData = getActiveTable();
+  if (!tableData) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16);
+  doc.text(tableData.title, 14, 20);
+  
+  doc.setFontSize(12);
+  doc.text(`Expression: ${currentData.expression}`, 14, 30);
+  
+  let y = 45;
+  
+  // Headers
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'bold');
+  const colWidth = 180 / tableData.headers.length;
+  tableData.headers.forEach((h, i) => {
+    doc.text(h, 14 + i * colWidth, y);
+  });
+  
+  y += 8;
+  doc.setFont(undefined, 'normal');
+  tableData.rows.forEach(row => {
+    row.forEach((cell, i) => {
+      doc.text(String(cell), 14 + i * colWidth, y);
+    });
+    y += 8;
+  });
+  
+  doc.save(`${tableData.title.replace(/\\s+/g, '_')}_${currentSessionId}.pdf`);
+}
+
+// ─── Step-Through Animation ───────────────────────────────────
+function stopStepThrough() {
+  if (stepTimer) clearInterval(stepTimer);
+  stepTimer = null;
+}
+
+function startStepThrough() {
+  stopStepThrough();
+  const lines = document.querySelectorAll('.tac-line');
+  const rows = document.querySelectorAll('#tacTableWrap tbody tr');
+  totalSteps = lines.length;
+  currentStep = 0;
+  
+  lines.forEach(l => l.style.display = 'none');
+  rows.forEach(r => r.style.display = 'none');
+  
+  document.getElementById('btnStepThrough').style.display = 'none';
+  document.getElementById('btnPrevStep').style.display = 'block';
+  document.getElementById('btnNextStep').style.display = 'block';
+  document.getElementById('btnResetSteps').style.display = 'block';
+  document.getElementById('btnShowAllSteps').style.display = 'block';
+  
+  updateStepCounter();
+  
+  stepTimer = setInterval(() => {
+    if (currentStep < totalSteps) {
+      showTacStep(currentStep);
+      currentStep++;
+      updateStepCounter();
+    } else {
+      stopStepThrough();
+    }
+  }, 1000);
+}
+
+function showTacStep(index) {
+  const lines = document.querySelectorAll('.tac-line');
+  const rows = document.querySelectorAll('#tacTableWrap tbody tr');
+  if (lines[index]) {
+    lines[index].style.display = '';
+    lines[index].style.animation = 'none';
+    lines[index].offsetHeight; 
+    lines[index].style.animation = 'rowIn .25s ease forwards';
+  }
+  if (rows[index]) {
+    rows[index].style.display = '';
+    rows[index].style.animation = 'none';
+    rows[index].offsetHeight;
+    rows[index].style.animation = 'rowIn .25s ease forwards';
+  }
+}
+
+function updateStepCounter() {
+  document.getElementById('stepCounter').textContent = `Step ${currentStep} / ${totalSteps}`;
+}
+
+function nextStep() {
+  stopStepThrough();
+  if (currentStep < totalSteps) {
+    showTacStep(currentStep);
+    currentStep++;
+    updateStepCounter();
+  }
+}
+
+function prevStep() {
+  stopStepThrough();
+  if (currentStep > 0) {
+    currentStep--;
+    const lines = document.querySelectorAll('.tac-line');
+    const rows = document.querySelectorAll('#tacTableWrap tbody tr');
+    if (lines[currentStep]) lines[currentStep].style.display = 'none';
+    if (rows[currentStep]) rows[currentStep].style.display = 'none';
+    updateStepCounter();
+  }
+}
+
+function resetSteps() {
+  stopStepThrough();
+  const lines = document.querySelectorAll('.tac-line');
+  const rows = document.querySelectorAll('#tacTableWrap tbody tr');
+  lines.forEach(l => l.style.display = 'none');
+  rows.forEach(r => r.style.display = 'none');
+  currentStep = 0;
+  updateStepCounter();
+}
+
+function showAllSteps() {
+  stopStepThrough();
+  const lines = document.querySelectorAll('.tac-line');
+  const rows = document.querySelectorAll('#tacTableWrap tbody tr');
+  lines.forEach(l => { l.style.display = ''; l.style.animation = 'none'; l.style.opacity = '1'; });
+  rows.forEach(r => { r.style.display = ''; r.style.animation = 'none'; r.style.opacity = '1'; });
+  totalSteps = lines.length;
+  currentStep = totalSteps;
+  updateStepCounter();
+  
+  document.getElementById('btnStepThrough').style.display = 'block';
+  document.getElementById('btnPrevStep').style.display = 'none';
+  document.getElementById('btnNextStep').style.display = 'none';
+  document.getElementById('btnResetSteps').style.display = 'none';
+  document.getElementById('btnShowAllSteps').style.display = 'none';
+}
+
+// ─── AST Rendering ────────────────────────────────────────────
+function renderAST(astRoot) {
+  const wrap = document.getElementById('astSvgWrap');
+  if (!astRoot) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">🌳</div><p>No AST generated</p></div>';
+    return;
+  }
+
+  const nodeWidth = 100;
+  const nodeHeight = 40;
+  const verticalSpacing = 60;
+  const horizontalSpacing = 20;
+
+  function buildTree(node) {
+    if (!node) return null;
+    const treeNode = { node, width: 0, x: 0, y: 0, children: [] };
+    
+    if (node.type === 'Assignment') {
+      const left = { node: { type: 'Identifier', value: node.lhs }, width: nodeWidth, x: 0, y: 0, children: [] };
+      const right = buildTree(node.rhs);
+      treeNode.children = [left, right].filter(Boolean);
+    } else if (node.type === 'BinaryOp') {
+      const left = buildTree(node.left);
+      const right = buildTree(node.right);
+      treeNode.children = [left, right].filter(Boolean);
+    } else if (node.type === 'UnaryOp') {
+      const child = buildTree(node.operand);
+      if (child) treeNode.children = [child];
+    }
+    
+    if (treeNode.children.length === 0) {
+      treeNode.width = nodeWidth;
+    } else {
+      treeNode.width = treeNode.children.reduce((sum, c) => sum + c.width, 0) + (treeNode.children.length - 1) * horizontalSpacing;
+    }
+    return treeNode;
+  }
+
+  const tree = buildTree(astRoot);
+  
+  function positionTree(treeNode, x, y) {
+    treeNode.x = x + treeNode.width / 2;
+    treeNode.y = y;
+    let currentX = x;
+    treeNode.children.forEach(c => {
+      positionTree(c, currentX, y + nodeHeight + verticalSpacing);
+      currentX += c.width + horizontalSpacing;
+    });
+  }
+  
+  positionTree(tree, 0, nodeHeight / 2);
+
+  const totalWidth = Math.max(tree.width, 400);
+  const getDepth = n => n.children.length === 0 ? 1 : 1 + Math.max(...n.children.map(getDepth));
+  const totalHeight = getDepth(tree) * (nodeHeight + verticalSpacing);
+  
+  let svg = `<svg width="${totalWidth + 40}" height="${totalHeight + 40}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<g transform="translate(20, 20)">`;
+  
+  function drawEdges(n) {
+    n.children.forEach(c => {
+      svg += `<path class="ast-edge" d="M ${n.x} ${n.y + nodeHeight/2} C ${n.x} ${n.y + nodeHeight/2 + verticalSpacing/2}, ${c.x} ${c.y - nodeHeight/2 - verticalSpacing/2}, ${c.x} ${c.y - nodeHeight/2}" />`;
+      drawEdges(c);
+    });
+  }
+  
+  function drawNodes(n) {
+    const label = n.node.op || n.node.value || n.node.type;
+    const typeLabel = n.node.type;
+    svg += `
+      <g class="ast-node" transform="translate(${n.x - nodeWidth/2}, ${n.y - nodeHeight/2})">
+        <rect width="${nodeWidth}" height="${nodeHeight}" />
+        <text x="${nodeWidth/2}" y="${nodeHeight/2 - 6}" style="font-size:10px; fill:#94a3b8;">${typeLabel}</text>
+        <text x="${nodeWidth/2}" y="${nodeHeight/2 + 8}">${escHtml(String(label))}</text>
+      </g>
+    `;
+    n.children.forEach(drawNodes);
+  }
+  
+  drawEdges(tree);
+  drawNodes(tree);
+  
+  svg += `</g></svg>`;
+  wrap.innerHTML = svg;
+}
+
 // ─── History ──────────────────────────────────────────────────
 async function loadHistory() {
   try {
@@ -210,7 +532,10 @@ async function loadSession(id) {
     if (!data.success) { showToast(data.error, 'error'); return; }
 
     currentSessionId = id;
-    document.getElementById('expressionInput').value = data.expression;
+    currentData = data;
+    document.getElementById('expressionInput').textContent = data.expression;
+    // AST is not returned from /session/:id right now, but compile route returns it. 
+    // Since AST isn't saved to DB, it might be undefined here. Let's hide it if so.
     renderResults(data);
     document.querySelectorAll('.history-item').forEach(el => el.classList.toggle('active', el.id === `hi-${id}`));
     showToast(`Loaded session #${id}`, 'success');
