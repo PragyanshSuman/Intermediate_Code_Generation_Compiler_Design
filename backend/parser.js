@@ -243,7 +243,7 @@ class Parser {
       this.lex.consume();
       const inner = this.parseExpression();
       this.lex.expect(')');
-      return inner;
+      return { type: 'Parentheses', inner: inner };
     }
     if (tok.type === T.EOF) throw new Error('Unexpected end of expression');
     throw new Error(`Unexpected token '${tok.value}'`);

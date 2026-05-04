@@ -36,6 +36,34 @@ function buildTAC(ast) {
     return result;
   }
 
+  function getPriority(node) {
+    if (!node) return 0;
+    if (node._priority !== undefined) return node._priority;
+    
+    let maxPri = 0;
+    if (node.type === 'Parentheses') {
+      maxPri = getPriority(node.inner) + 1000;
+    } else if (node.type === 'UnaryOp') {
+      maxPri = Math.max(50, getPriority(node.operand));
+    } else if (node.type === 'BinaryOp') {
+      let opPri = 0;
+      if (['^'].includes(node.op)) opPri = 40;
+      else if (['*', '/', '%'].includes(node.op)) opPri = 30;
+      else if (['+', '-'].includes(node.op)) opPri = 20;
+      else if (['<', '>', '<=', '>=', '==', '!='].includes(node.op)) opPri = 10;
+      else opPri = 5;
+      
+      const leftPri = getPriority(node.left);
+      const rightPri = getPriority(node.right);
+      maxPri = Math.max(opPri, leftPri, rightPri);
+    } else if (node.type === 'Assignment') {
+      maxPri = getPriority(node.rhs);
+    }
+    
+    node._priority = maxPri;
+    return maxPri;
+  }
+
   function visit(node) {
     if (!node) throw new Error('Null AST node');
 
@@ -59,10 +87,26 @@ function buildTAC(ast) {
       return emit(tmp, operand, opSymbol, null);
     }
 
+    // Parentheses wrapper
+    if (node.type === 'Parentheses') {
+      return visit(node.inner);
+    }
+
     // Binary operation  →  t_n = left op right
     if (node.type === 'BinaryOp') {
-      const left  = visit(node.left);
-      const right = visit(node.right);
+      const leftPri = getPriority(node.left);
+      const rightPri = getPriority(node.right);
+      
+      let left, right;
+      // Evaluate higher priority branch first
+      if (leftPri >= rightPri) {
+        left  = visit(node.left);
+        right = visit(node.right);
+      } else {
+        right = visit(node.right);
+        left  = visit(node.left);
+      }
+      
       const tmp   = newTemp();
       return emit(tmp, left, node.op, right);
     }

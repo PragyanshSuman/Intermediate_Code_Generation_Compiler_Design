@@ -24,17 +24,6 @@ function useExample(el) {
 }
 
 // ─── Compile ─────────────────────────────────────────────────
-document.getElementById('expressionInput').addEventListener('input', function() {
-  if (this.querySelector('.error-highlight')) {
-    this.textContent = this.textContent;
-    const range = document.createRange();
-    const sel = window.getSelection();
-    range.selectNodeContents(this);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-});
 
 // Enter key
 document.getElementById('expressionInput').addEventListener('keydown', e => {
@@ -63,7 +52,6 @@ async function compileExpression() {
 
     if (!data.success) { 
       showToast(data.error, 'error'); 
-      highlightError(exprBox, expr, data.error);
       return; 
     }
 
@@ -77,19 +65,6 @@ async function compileExpression() {
   } finally {
     btn.classList.remove('loading');
     btn.innerHTML = 'Compile ▶';
-  }
-}
-
-function highlightError(el, text, errorMsg) {
-  let match = errorMsg.match(/position (\d+)/);
-  if (match) {
-    const pos = parseInt(match[1], 10);
-    const before = escHtml(text.substring(0, pos));
-    const char = escHtml(text.substring(pos, pos + 1) || ' ');
-    const after = escHtml(text.substring(pos + 1));
-    el.innerHTML = `${before}<span class="error-highlight" data-error="${escHtml(errorMsg)}">${char}</span>${after}`;
-  } else {
-    el.innerHTML = `<span class="error-highlight" data-error="${escHtml(errorMsg)}">${escHtml(text)}</span>`;
   }
 }
 
@@ -441,6 +416,10 @@ function renderAST(astRoot) {
     } else if (node.type === 'UnaryOp') {
       const child = buildTree(node.operand);
       if (child) treeNode.children = [child];
+    } else if (node.type === 'Parentheses') {
+      const child = buildTree(node.inner);
+      if (child) treeNode.children = [child];
+      treeNode.node.value = '( )';
     }
     
     if (treeNode.children.length === 0) {
