@@ -88,6 +88,7 @@ router.post('/compile', async (req, res) => {
       success: true,
       sessionId,
       expression: expression.trim(),
+      ast,
       tac:            ir.tac.map((instr, i) => ({
         step:     instr.step,
         result:   instr.result,

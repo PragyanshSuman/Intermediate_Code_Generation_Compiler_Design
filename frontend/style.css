@@ -32,6 +32,7 @@
   --tab-quad:  #06b6d4;
   --tab-tri:   #10b981;
   --tab-ind:   #f59e0b;
+  --tab-ast:   #6c63ff;
 }
 
 /* ─── Reset ─────────────────────────────────────────────────── */
@@ -122,7 +123,32 @@ header {
   border-color: var(--purple);
   box-shadow: 0 0 0 3px rgba(139,92,246,0.18), var(--shadow-glow);
 }
-#expressionInput::placeholder { color: var(--text-3); }
+#expressionInput:empty::before { content: attr(placeholder); color: var(--text-3); pointer-events: none; }
+
+/* Syntax Error Highlight */
+.error-highlight {
+  color: var(--red);
+  text-decoration: underline wavy var(--red);
+  text-underline-offset: 4px;
+  cursor: help;
+  position: relative;
+}
+.error-highlight:hover::after {
+  content: attr(data-error);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--red);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  margin-bottom: 6px;
+}
 
 .btn-compile {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
@@ -162,11 +188,35 @@ header {
 .tab-btn[data-tab="quad"]  .dot { background:var(--tab-quad); }
 .tab-btn[data-tab="tri"]   .dot { background:var(--tab-tri); }
 .tab-btn[data-tab="ind"]   .dot { background:var(--tab-ind); }
+.tab-btn[data-tab="ast"]   .dot { background:var(--tab-ast); }
 .tab-btn.active { background:rgba(255,255,255,0.07); color:var(--text-1); }
 .tab-btn[data-tab="tac"].active  { box-shadow:0 0 0 1px var(--tab-tac); color:var(--tab-tac); }
 .tab-btn[data-tab="quad"].active { box-shadow:0 0 0 1px var(--tab-quad); color:var(--tab-quad); }
 .tab-btn[data-tab="tri"].active  { box-shadow:0 0 0 1px var(--tab-tri); color:var(--tab-tri); }
 .tab-btn[data-tab="ind"].active  { box-shadow:0 0 0 1px var(--tab-ind); color:var(--tab-ind); }
+.tab-btn[data-tab="ast"].active  { box-shadow:0 0 0 1px var(--tab-ast); color:var(--tab-ast); }
+
+/* ─── Export Dropdown ────────────────────────────────────────── */
+.export-dropdown { position: relative; display: inline-block; }
+.btn-export {
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  color: var(--text-2); font-family: 'Inter', sans-serif;
+  font-size: .78rem; font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.btn-export:hover { background: rgba(255,255,255,0.1); color: var(--text-1); }
+.export-menu {
+  display: none; position: absolute; right: 0; top: 110%;
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  z-index: 100; min-width: 140px; overflow: hidden;
+}
+.export-dropdown:hover .export-menu { display: block; }
+.export-menu div {
+  padding: 10px 14px; font-size: .8rem; color: var(--text-2);
+  cursor: pointer; transition: background .15s;
+}
+.export-menu div:hover { background: rgba(255,255,255,0.08); color: var(--text-1); }
 
 /* ─── Tab Panel ──────────────────────────────────────────────── */
 .tab-panel { display:none; animation: fadeUp .3s ease; }
@@ -224,6 +274,44 @@ tbody tr { opacity:0; transform:translateX(-8px); animation: rowIn .25s ease for
 .tac-line .eql { color: var(--text-2); margin: 0 8px; }
 .tac-line .operand { color: var(--text-1); }
 .tac-line .opr { color: var(--purple); margin: 0 8px; font-weight:600; }
+
+/* ─── Step Controls ──────────────────────────────────────────── */
+.step-controls {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.step-counter { font-size: .85rem; font-weight: 600; color: var(--text-2); }
+.btn-ghost {
+  padding: 6px 14px; border-radius: 6px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-2); font-family: 'Inter', sans-serif;
+  font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.btn-ghost:hover { background: rgba(139,92,246,0.1); border-color: var(--purple); color: var(--text-1); }
+
+/* ─── AST SVG Styles ─────────────────────────────────────────── */
+.ast-node rect {
+  fill: #2a2a4a;
+  stroke: var(--purple);
+  stroke-width: 1.5;
+  rx: 6; ry: 6;
+  transition: fill 0.2s;
+}
+.ast-node:hover rect { fill: #3a3a5a; }
+.ast-node text {
+  fill: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+.ast-edge {
+  stroke: var(--tab-ast);
+  stroke-width: 2;
+  fill: none;
+}
 
 /* ─── Empty State ────────────────────────────────────────────── */
 .empty-state {

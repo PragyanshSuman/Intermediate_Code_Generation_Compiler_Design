@@ -36,12 +36,12 @@
           <span style="font-size:.68rem;color:var(--text-3)">supports + − * / % ^ || && ! == != &lt; &gt; &lt;= &gt;=</span>
         </div>
         <div class="input-wrap">
-          <input
+          <div
             id="expressionInput"
-            type="text"
+            contenteditable="true"
             placeholder="e.g.  a + b * c - d / e"
             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          />
+          ></div>
           <button class="btn-compile" id="compileBtn" onclick="compileExpression()">
             Compile ▶
           </button>
@@ -75,20 +75,32 @@
       <!-- Result Card -->
       <div class="card" id="resultCard">
 
-        <!-- Tabs -->
-        <div class="tabs">
-          <button class="tab-btn active" data-tab="tac"  onclick="switchTab('tac')">
-            <span class="dot"></span>Three Address Code
-          </button>
-          <button class="tab-btn" data-tab="quad" onclick="switchTab('quad')">
-            <span class="dot"></span>Quadruples
-          </button>
-          <button class="tab-btn" data-tab="tri"  onclick="switchTab('tri')">
-            <span class="dot"></span>Triples
-          </button>
-          <button class="tab-btn" data-tab="ind"  onclick="switchTab('ind')">
-            <span class="dot"></span>Indirect Triples
-          </button>
+        <!-- Tabs & Export -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div class="tabs" style="margin-bottom:0; flex-grow:1; margin-right:16px;">
+            <button class="tab-btn active" data-tab="tac"  onclick="switchTab('tac')">
+              <span class="dot"></span>Three Address Code
+            </button>
+            <button class="tab-btn" data-tab="quad" onclick="switchTab('quad')">
+              <span class="dot"></span>Quadruples
+            </button>
+            <button class="tab-btn" data-tab="tri"  onclick="switchTab('tri')">
+              <span class="dot"></span>Triples
+            </button>
+            <button class="tab-btn" data-tab="ind"  onclick="switchTab('ind')">
+              <span class="dot"></span>Indirect Triples
+            </button>
+            <button class="tab-btn" data-tab="ast"  onclick="switchTab('ast')">
+              <span class="dot"></span>AST
+            </button>
+          </div>
+          <div class="export-dropdown">
+            <button class="btn-export">Export ⬇</button>
+            <div class="export-menu">
+              <div onclick="exportCSV()">Export as CSV</div>
+              <div onclick="exportPDF()">Export as PDF</div>
+            </div>
+          </div>
         </div>
 
         <!-- TAC Panel -->
@@ -99,6 +111,16 @@
           </div>
           <div id="tacOutput">
             <div class="empty-state"><div class="icon">📄</div><p>Enter an expression and click <strong>Compile</strong></p></div>
+          </div>
+          <div class="step-controls" id="stepControls" style="display:none;">
+            <div class="step-counter" id="stepCounter">Step 0 / 0</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-ghost" id="btnStepThrough" onclick="startStepThrough()">Step Through</button>
+              <button class="btn-ghost" id="btnPrevStep" onclick="prevStep()" style="display:none;">Prev</button>
+              <button class="btn-ghost" id="btnNextStep" onclick="nextStep()" style="display:none;">Next</button>
+              <button class="btn-ghost" id="btnResetSteps" onclick="resetSteps()" style="display:none;">Reset</button>
+              <button class="btn-ghost" id="btnShowAllSteps" onclick="showAllSteps()" style="display:none;">Show All</button>
+            </div>
           </div>
           <div class="table-wrap" id="tacTableWrap" style="display:none; margin-top:16px"></div>
         </div>
@@ -147,6 +169,16 @@
           </div>
         </div>
 
+        <!-- AST Panel -->
+        <div class="tab-panel" id="panel-ast">
+          <div class="ir-description" style="border-color:var(--tab-ast);">
+            <strong>Abstract Syntax Tree (AST)</strong> — A tree representation of the abstract syntactic structure of the expression.
+          </div>
+          <div class="table-wrap" id="astSvgWrap" style="text-align:center; padding:20px; overflow:auto; min-height:300px; background:rgba(0,0,0,0.2);">
+            <div class="empty-state"><div class="icon">🌳</div><p>Enter an expression and click <strong>Compile</strong></p></div>
+          </div>
+        </div>
+
       </div><!-- /resultCard -->
     </div><!-- /left-panel -->
 
@@ -184,6 +216,7 @@
 <!-- Toast Container -->
 <div id="toast-container"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
