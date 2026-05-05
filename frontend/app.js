@@ -23,6 +23,18 @@ function useExample(el) {
   input.focus();
 }
 
+// ─── Theme Toggle ─────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-theme');
+  localStorage.setItem('icg-theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeToggle').textContent = isLight ? '🌙' : '☀️';
+}
+// Init theme
+if (localStorage.getItem('icg-theme') === 'light') {
+  document.body.classList.add('light-theme');
+  document.getElementById('themeToggle').textContent = '🌙';
+}
+
 // ─── Compile ─────────────────────────────────────────────────
 
 // Enter key — only auto-submit in Expression mode
@@ -32,6 +44,13 @@ document.getElementById('expressionInput').addEventListener('keydown', e => {
     e.preventDefault();
     compileExpression();
   }
+});
+
+// Force plain text paste to avoid copying dark colors from other IDEs
+document.getElementById('expressionInput').addEventListener('paste', function(e) {
+  e.preventDefault();
+  const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+  document.execCommand('insertText', false, text);
 });
 
 async function compileExpression() {
@@ -91,6 +110,32 @@ function renderResults(data) {
   if (data.tokens) renderTokens(data.tokens);
   if (data.optimizedTac) renderOptimizedTAC(data.optimizedTac);
   if (data.assembly) renderAssembly(data.assembly);
+
+  // Stats Card Calculation
+  const astDepth = data.ast ? (function getDepth(n) {
+    if (!n) return 0;
+    if (n.type === 'Assignment') return 1 + getDepth(n.rhs);
+    if (n.type === 'BinaryOp') return 1 + Math.max(getDepth(n.left), getDepth(n.right));
+    if (n.type === 'UnaryOp' || n.type === 'PostfixOp' || n.type === 'Return') return 1 + getDepth(n.operand || n.expr);
+    if (n.type === 'Parentheses') return getDepth(n.inner);
+    if (n.type === 'Program' || n.type === 'Block') return 1 + Math.max(0, ...n.body.map(getDepth));
+    if (n.type === 'Function') return 1 + getDepth(n.body);
+    if (n.type === 'ExprStmt') return getDepth(n.expr);
+    if (n.type === 'VarDecl') return 1 + Math.max(0, ...n.decls.map(d => getDepth(d.init)));
+    if (n.type === 'FunctionCall') return 1 + Math.max(0, ...n.args.map(getDepth));
+    if (n.type === 'IfElse') return 1 + Math.max(getDepth(n.cond), getDepth(n.trueBranch), getDepth(n.falseBranch));
+    if (n.type === 'ForLoop') return 1 + Math.max(getDepth(n.init), getDepth(n.cond), getDepth(n.inc), getDepth(n.body));
+    return 1;
+  })(data.ast) : 0;
+
+  const tempVars = new Set(data.tac.filter(t => /^t\d+$/.test(t.result)).map(t => t.result)).size;
+
+  document.getElementById('compileStatsCard').style.display = 'block';
+  document.getElementById('csTokens').textContent = data.tokens ? data.tokens.length : 0;
+  document.getElementById('csAstDepth').textContent = astDepth;
+  document.getElementById('csTacSteps').textContent = data.tac.length;
+  document.getElementById('csStepsSaved').textContent = data.optimizedTac ? data.tac.length - data.optimizedTac.length : 0;
+  document.getElementById('csTempVars').textContent = tempVars;
 
   document.getElementById('stepControls').style.display = data.tac.length > 0 ? 'flex' : 'none';
   showAllSteps();
@@ -336,6 +381,7 @@ function startStepThrough() {
   document.getElementById('btnResetSteps').style.display = 'block';
   document.getElementById('btnShowAllSteps').style.display = 'block';
   
+  document.getElementById('stepCounter').style.display = 'block';
   updateStepCounter();
   
   stepTimer = setInterval(() => {
@@ -399,6 +445,13 @@ function resetSteps() {
   rows.forEach(r => r.style.display = 'none');
   currentStep = 0;
   updateStepCounter();
+  
+  document.getElementById('btnStepThrough').style.display = 'block';
+  document.getElementById('btnPrevStep').style.display = 'none';
+  document.getElementById('btnNextStep').style.display = 'none';
+  document.getElementById('btnResetSteps').style.display = 'none';
+  document.getElementById('btnShowAllSteps').style.display = 'none';
+  document.getElementById('stepCounter').style.display = 'none';
 }
 
 function showAllSteps() {
@@ -416,6 +469,7 @@ function showAllSteps() {
   document.getElementById('btnNextStep').style.display = 'none';
   document.getElementById('btnResetSteps').style.display = 'none';
   document.getElementById('btnShowAllSteps').style.display = 'none';
+  document.getElementById('stepCounter').style.display = 'none';
 }
 
 // ─── AST Rendering ────────────────────────────────────────────
@@ -640,24 +694,41 @@ function renderTokens(tokens) {
 
 // ─── Optimized TAC ────────────────────────────────────────────
 function renderOptimizedTAC(tac) {
-  const out = document.getElementById('optTacOutput');
+  const outOriginal = document.getElementById('optTacOriginal');
+  const outOpt = document.getElementById('optTacOutput');
   const tableWrap = document.getElementById('optTacTableWrap');
+  
+  if (!currentData || !currentData.tac) return;
+  const originalTac = currentData.tac;
+  
+  const keptSteps = new Set(tac.map(t => t.step));
+  
+  let originalHtml = '';
+  let foldedCount = 0;
+  let deadCodeCount = 0;
 
-  out.innerHTML = '<div class="tac-mono">' +
-    tac.map((instr, i) => {
-      const delay = i * 60;
-      const tacStr = instr.tacString || '';
+  originalTac.forEach((instr, i) => {
+    const delay = i * 60;
+    const tacStr = instr.tacString || '';
+    const isKept = keptSteps.has(instr.step);
+    
+    const isNumber = val => !isNaN(parseFloat(val)) && isFinite(val);
+    const isFolded = !isKept && (isNumber(instr.op1) && (instr.op2 === '-' || instr.op2 === null || isNumber(instr.op2)));
+    if (!isKept) {
+      if (isFolded) foldedCount++; else deadCodeCount++;
+    }
 
-      const controlOps = ['LABEL', 'GOTO', 'ifFalse', 'param', 'return', 'call'];
-      if (controlOps.includes(instr.operator)) {
-        const isLabel  = instr.operator === 'LABEL';
-        const isJump   = instr.operator === 'GOTO' || instr.operator === 'ifFalse';
-        const color    = isLabel ? '#f59e0b' : isJump ? '#a78bfa' : '#67e8f9';
-        return '<div class="tac-line" style="animation-delay:' + delay + 'ms">' +
-          '<span class="ln">' + String(i).padStart(2,'0') + ':</span><span style="color:' + color + '; font-weight:600;">' + escHtml(tacStr) + '</span>' +
-        '</div>';
-      }
+    const diffClass = isKept ? 'diff-kept' : (isFolded ? 'diff-folded' : 'diff-removed');
 
+    const controlOps = ['LABEL', 'GOTO', 'ifFalse', 'param', 'return', 'call'];
+    if (controlOps.includes(instr.operator)) {
+      const isLabel  = instr.operator === 'LABEL';
+      const isJump   = instr.operator === 'GOTO' || instr.operator === 'ifFalse';
+      const color    = isLabel ? '#f59e0b' : isJump ? '#a78bfa' : '#67e8f9';
+      originalHtml += '<div class="tac-line ' + diffClass + '" style="animation-delay:' + delay + 'ms">' +
+        '<span class="ln">' + String(i).padStart(2,'0') + ':</span><span style="color:' + color + '; font-weight:600;">' + escHtml(tacStr) + '</span>' +
+      '</div>';
+    } else {
       const lhs = '<span class="res">' + escHtml(String(instr.result ?? '')) + '</span>';
       const eql = '<span class="eql">=</span>';
       let rhs = '';
@@ -668,23 +739,50 @@ function renderOptimizedTAC(tac) {
       } else {
         rhs = '<span class="opr">' + escHtml(instr.operator) + '</span> <span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span>';
       }
-      return '<div class="tac-line" style="animation-delay:' + delay + 'ms">' +
+      originalHtml += '<div class="tac-line ' + diffClass + '" style="animation-delay:' + delay + 'ms">' +
         '<span class="ln">' + String(i).padStart(2,'0') + ':</span>' + lhs + ' ' + eql + ' ' + rhs +
       '</div>';
-    }).join('') + '</div>';
+    }
+  });
 
-  tableWrap.style.display = 'block';
-  tableWrap.innerHTML = buildTable(
-    ['#', 'Result', 'Operand 1', 'Operator', 'Operand 2'],
-    tac.map((r, i) => [
-      '<span class="step-badge">' + r.step + '</span>',
-      '<span class="result-cell">' + r.result + '</span>',
-      r.op1,
-      '<span class="op-chip" style="background:rgba(234,179,8,0.2);color:#facc15;">' + r.operator + '</span>',
-      r.op2 || '—',
-    ]),
-    i => i * 60
-  );
+  outOriginal.innerHTML = '<div class="tac-mono">' + originalHtml + '</div>';
+
+  let optHtml = '';
+  tac.forEach((instr, i) => {
+    const delay = i * 60;
+    const tacStr = instr.tacString || '';
+    const diffClass = 'diff-kept';
+
+    const controlOps = ['LABEL', 'GOTO', 'ifFalse', 'param', 'return', 'call'];
+    if (controlOps.includes(instr.operator)) {
+      const isLabel  = instr.operator === 'LABEL';
+      const isJump   = instr.operator === 'GOTO' || instr.operator === 'ifFalse';
+      const color    = isLabel ? '#f59e0b' : isJump ? '#a78bfa' : '#67e8f9';
+      optHtml += '<div class="tac-line ' + diffClass + '" style="animation-delay:' + delay + 'ms">' +
+        '<span class="ln">' + String(instr.step).padStart(2,'0') + ':</span><span style="color:' + color + '; font-weight:600;">' + escHtml(tacStr) + '</span>' +
+      '</div>';
+    } else {
+      const lhs = '<span class="res">' + escHtml(String(instr.result ?? '')) + '</span>';
+      const eql = '<span class="eql">=</span>';
+      let rhs = '';
+      if (instr.op2 && instr.op2 !== '-') {
+        rhs = '<span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span><span class="opr">' + escHtml(instr.operator) + '</span><span class="operand">' + escHtml(String(instr.op2)) + '</span>';
+      } else if (instr.operator === '=') {
+        rhs = '<span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span>';
+      } else {
+        rhs = '<span class="opr">' + escHtml(instr.operator) + '</span> <span class="operand">' + escHtml(String(instr.op1 ?? '')) + '</span>';
+      }
+      optHtml += '<div class="tac-line ' + diffClass + '" style="animation-delay:' + delay + 'ms">' +
+        '<span class="ln">' + String(instr.step).padStart(2,'0') + ':</span>' + lhs + ' ' + eql + ' ' + rhs +
+      '</div>';
+    }
+  });
+
+  outOpt.innerHTML = '<div class="tac-mono">' + optHtml + '</div>';
+  
+  document.getElementById('optTacSummary').textContent = `Optimized: ${deadCodeCount} dead steps removed, ${foldedCount} constants folded`;
+
+  tableWrap.style.display = 'none';
 }
 
 // ─── Assembly ─────────────────────────────────────────────────

@@ -354,7 +354,7 @@ router.post('/init-db', async (req, res) => {
     const conn = await pool.getConnection();
     try {
       for (const stmt of statements) {
-        await conn.execute(stmt);
+        await conn.query(stmt);
       }
     } finally {
       conn.release();
