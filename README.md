@@ -1,6 +1,6 @@
 # 🔧 ICG Studio — Intermediate Code Generation
 
-A full-stack Compiler Design project demonstrating the **Intermediate Code Generation** phase of a compiler. Enter any arithmetic or logical expression and instantly generate all four standard intermediate representations — backed by a **MySQL** database.
+A full-stack Compiler Design project demonstrating the **Complete Pipeline** of a compiler. Enter any arithmetic or logical expression (or a C snippet!) and instantly generate Lexical Tokens, ASTs, all four standard intermediate representations, Optimized TAC, and Assembly Code — backed by a **MySQL** database.
 
 ![ICG Studio Preview](https://img.shields.io/badge/Phase-Intermediate%20Code%20Generation-8b5cf6?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-Express-green?style=for-the-badge&logo=node.js)
@@ -12,14 +12,16 @@ A full-stack Compiler Design project demonstrating the **Intermediate Code Gener
 
 | Feature | Description |
 |---------|-------------|
-| 🔢 **Expression Parser** | Recursive-descent parser supporting `+`, `-`, `*`, `/`, `%`, `^`, `&&`, `\|\|`, `!`, `==`, `!=`, `<`, `>`, `<=`, `>=`, assignment `=`, unary minus, parentheses |
-| 📄 **Three Address Code** | Monospace code view + structured table with temp variables (t1, t2…) |
-| ⊞ **Quadruples** | `(operator, arg1, arg2, result)` four-field tuple table |
-| ⊟ **Triples** | `(operator, arg1, arg2)` using TAC temp variable names |
-| 📋 **Indirect Triples** | Pointer array (100, 101, 102…) referencing the triples table |
-| 🗄️ **MySQL Storage** | Every compilation is fully persisted across 5 relational tables |
-| 🕘 **History Panel** | Browse, reload, and delete past compilation sessions |
-| 🎨 **Premium Dark UI** | Glassmorphism, animated tabs, row entrance animations, toast notifications |
+| 🏷️ **Lexical Analysis** | Tokenizer generating a stream of classified tokens. |
+| 🌳 **Syntax Analysis** | Interactive SVG visualization of the Abstract Syntax Tree (AST). |
+| 🔢 **Expression & C Snippet** | Recursive-descent parser supporting arithmetic expressions and full C-like control flow (`if/else`, `while`, `for`). |
+| 📄 **Three Address Code** | Monospace code view with animated Step-Through playback. |
+| ⊞ **IR Variations** | Quadruples, Triples, and Indirect Triples generation. |
+| ✨ **Code Optimization** | Side-by-side diff view highlighting constant folding and dead code elimination. |
+| ⚙️ **Code Generation** | Translates IR into x86-like assembly code. |
+| 🗄️ **MySQL Storage** | Every compilation is fully persisted across 8 relational tables. |
+| 📊 **Analytics & Export** | Dynamic compilation statistics panel and 1-click CSV/PDF exports. |
+| 🎨 **Premium UI** | Dark/Light mode toggle, glassmorphism, animated tabs, and row entrance animations. |
 
 ---
 
@@ -77,10 +79,13 @@ Navigate to **http://localhost:3001**
 
 ```
 sessions            — stores each compilation session
+tokens              — lexical tokens per session
 three_address_code  — TAC instructions per session
 quadruples          — quadruple tuples per session
 triples             — triple tuples per session
 indirect_triples    — pointer array entries per session
+optimized_tac       — optimized TAC instructions per session
+assembly_code       — target assembly instructions per session
 ```
 All child tables use `ON DELETE CASCADE` from `sessions`.
 
@@ -156,7 +161,8 @@ Pointer: 102 → step 2
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| `POST` | `/api/compile` | Compile expression → generate & store all 4 IRs |
+| `POST` | `/api/compile` | Compile expression → generate & store all compiler phases |
+| `POST` | `/api/compile-snippet` | Compile C snippet with control flow |
 | `GET` | `/api/history` | Last 15 compilation sessions |
 | `GET` | `/api/session/:id` | Full IR data for a session |
 | `DELETE` | `/api/session/:id` | Delete a session (cascades) |

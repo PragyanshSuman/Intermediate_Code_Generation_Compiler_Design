@@ -132,9 +132,23 @@
         
         <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px;">
           <div class="tabs" style="margin-bottom:0;">
+            <button class="tab-btn" data-tab="tokens"  onclick="switchTab('tokens')">
+              <span class="dot"></span>Tokens
+            </button>
+            <button class="tab-btn" data-tab="ast"  onclick="switchTab('ast')">
+              <span class="dot"></span>AST
+            </button>
             <button class="tab-btn active" data-tab="tac"  onclick="switchTab('tac')">
               <span class="dot"></span>Three Address Code
             </button>
+            <button class="tab-btn" data-tab="optTac"  onclick="switchTab('optTac')">
+              <span class="dot"></span>Optimized TAC
+            </button>
+            <button class="tab-btn" data-tab="asm"  onclick="switchTab('asm')">
+              <span class="dot"></span>Assembly Code
+            </button>
+          </div>
+          <div class="tabs" style="margin-bottom:0;">
             <button class="tab-btn" data-tab="quad" onclick="switchTab('quad')">
               <span class="dot"></span>Quadruples
             </button>
@@ -143,20 +157,6 @@
             </button>
             <button class="tab-btn" data-tab="ind"  onclick="switchTab('ind')">
               <span class="dot"></span>Indirect Triples
-            </button>
-          </div>
-          <div class="tabs" style="margin-bottom:0;">
-            <button class="tab-btn" data-tab="ast"  onclick="switchTab('ast')">
-              <span class="dot"></span>AST
-            </button>
-            <button class="tab-btn" data-tab="tokens"  onclick="switchTab('tokens')">
-              <span class="dot"></span>Tokens
-            </button>
-            <button class="tab-btn" data-tab="optTac"  onclick="switchTab('optTac')">
-              <span class="dot"></span>Optimized TAC
-            </button>
-            <button class="tab-btn" data-tab="asm"  onclick="switchTab('asm')">
-              <span class="dot"></span>Assembly Code
             </button>
           </div>
         </div>
