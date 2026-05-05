@@ -136,6 +136,21 @@ function buildTAC(ast) {
       return null;
     }
 
+    if (node.type === 'WhileLoop') {
+      const startLbl = newLabel();
+      const endLbl = newLabel();
+      emitLabel(startLbl);
+      
+      const cond = visit(node.cond);
+      emitIfFalse(cond, endLbl);
+      
+      visit(node.body);
+      
+      emitGoto(startLbl);
+      emitLabel(endLbl);
+      return null;
+    }
+
     if (node.type === 'Return') {
       if (node.expr) {
         const val = visit(node.expr);

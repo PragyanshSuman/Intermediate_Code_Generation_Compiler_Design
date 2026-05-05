@@ -11,7 +11,8 @@ const T = {
   EOF: 'EOF'
 };
 
-const KEYWORDS = new Set(['int', 'char', 'float', 'void', 'for', 'if', 'else', 'return', 'while']);
+const KEYWORDS = new Set(['int', 'char', 'float', 'void', 'double', 'for', 'if', 'else', 'return', 'while']);
+const TYPES = new Set(['int', 'char', 'float', 'void', 'double']);
 
 class Lexer {
   constructor(src) {
@@ -60,7 +61,35 @@ class Lexer {
         while (this.pos < this.src.length && /\d/.test(this.peekC())) {
           str += this.advance();
         }
+        if (this.peekC() === '.') {
+          str += this.advance();
+          while (this.pos < this.src.length && /\d/.test(this.peekC())) {
+            str += this.advance();
+          }
+        }
         this.tokens.push({ type: T.NUM, value: str });
+        continue;
+      }
+
+      if (ch === "'") {
+        this.advance(); // skip '
+        let val = '';
+        if (this.peekC() === '\\') {
+          val += this.advance(); // \
+          val += this.advance(); // char
+        } else {
+          val += this.advance();
+        }
+        if (this.peekC() === "'") this.advance(); // skip '
+        
+        // Convert to char code for numeric comparison if it's a single char
+        let numericValue;
+        if (val.length === 1) numericValue = val.charCodeAt(0).toString();
+        else if (val === '\\n') numericValue = '10';
+        else if (val === '\\t') numericValue = '9';
+        else numericValue = '0'; // fallback
+        
+        this.tokens.push({ type: T.NUM, value: numericValue });
         continue;
       }
 
@@ -89,12 +118,14 @@ class Lexer {
       if (ch === '+') {
         this.advance();
         if (this.peekC() === '+') { this.advance(); this.tokens.push({ type: T.OP, value: '++' }); }
+        else if (this.peekC() === '=') { this.advance(); this.tokens.push({ type: T.OP, value: '+=' }); }
         else this.tokens.push({ type: T.OP, value: '+' });
         continue;
       }
       if (ch === '-') {
         this.advance();
         if (this.peekC() === '-') { this.advance(); this.tokens.push({ type: T.OP, value: '--' }); }
+        else if (this.peekC() === '=') { this.advance(); this.tokens.push({ type: T.OP, value: '-=' }); }
         else this.tokens.push({ type: T.OP, value: '-' });
         continue;
       }
@@ -134,8 +165,38 @@ class Lexer {
         else this.tokens.push({ type: T.OP, value: '&' });
         continue;
       }
-      if ('*/%'.includes(ch)) {
-        this.tokens.push({ type: T.OP, value: this.advance() });
+      if (ch === '/') {
+        this.advance();
+        if (this.peekC() === '/') {
+          this.advance();
+          while (this.pos < this.src.length && this.peekC() !== '\n') this.advance();
+          continue;
+        } else if (this.peekC() === '*') {
+          this.advance();
+          while (this.pos < this.src.length) {
+            if (this.advance() === '*' && this.peekC() === '/') {
+              this.advance();
+              break;
+            }
+          }
+          continue;
+        } else if (this.peekC() === '=') {
+          this.advance();
+          this.tokens.push({ type: T.OP, value: '/=' });
+        } else {
+          this.tokens.push({ type: T.OP, value: '/' });
+        }
+        continue;
+      }
+
+      if ('*%'.includes(ch)) {
+        let op = this.advance();
+        if (this.peekC() === '=') {
+          this.advance();
+          this.tokens.push({ type: T.OP, value: op + '=' });
+        } else {
+          this.tokens.push({ type: T.OP, value: op });
+        }
         continue;
       }
 
@@ -170,7 +231,7 @@ class Parser {
     while (this.lex.peek().type !== T.EOF) {
       if (this.lex.peek().type === T.PREPROC) {
         this.lex.consume(); // ignore preproc for IR
-      } else if (this.lex.peek().type === T.KEYWORD && ['int', 'void'].includes(this.lex.peek().value)) {
+      } else if (this.lex.peek().type === T.KEYWORD && TYPES.has(this.lex.peek().value)) {
         // could be function decl or var decl
         const startPos = this.lex.cur;
         this.lex.consume(); // int
@@ -190,7 +251,7 @@ class Parser {
   }
 
   parseFunction() {
-    this.lex.consume(); // int/void
+    this.lex.consume(); // type
     const name = this.lex.expect(T.IDENT).value;
     this.lex.expect(T.PUNCT, '(');
     // simplified args
@@ -204,6 +265,10 @@ class Parser {
     this.lex.expect(T.PUNCT, '{');
     const stmts = [];
     while (this.lex.peek().value !== '}') {
+      if (this.lex.peek().type === T.PREPROC) {
+        this.lex.consume();
+        continue;
+      }
       stmts.push(this.parseStatement());
     }
     this.lex.expect(T.PUNCT, '}');
@@ -212,10 +277,12 @@ class Parser {
 
   parseStatement() {
     const p = this.lex.peek();
+    if (p.type === T.PREPROC) { this.lex.consume(); return null; }
     if (p.type === T.PUNCT && p.value === '{') return this.parseBlock();
-    if (p.type === T.KEYWORD && p.value === 'int') return this.parseVarDecl();
+    if (p.type === T.KEYWORD && TYPES.has(p.value)) return this.parseVarDecl();
     if (p.type === T.KEYWORD && p.value === 'for') return this.parseFor();
     if (p.type === T.KEYWORD && p.value === 'if') return this.parseIf();
+    if (p.type === T.KEYWORD && p.value === 'while') return this.parseWhile();
     if (p.type === T.KEYWORD && p.value === 'return') return this.parseReturn();
     
     // Expression statement
@@ -225,7 +292,7 @@ class Parser {
   }
 
   parseVarDecl() {
-    this.lex.consume(); // 'int'
+    this.lex.consume(); // type keyword
     const decls = [];
     while (true) {
       const id = this.lex.expect(T.IDENT).value;
@@ -268,6 +335,15 @@ class Parser {
     return { type: 'IfElse', cond, trueBranch, falseBranch };
   }
 
+  parseWhile() {
+    this.lex.expect(T.KEYWORD, 'while');
+    this.lex.expect(T.PUNCT, '(');
+    const cond = this.parseExpression();
+    this.lex.expect(T.PUNCT, ')');
+    const body = this.parseStatement();
+    return { type: 'WhileLoop', cond, body };
+  }
+
   parseReturn() {
     this.lex.expect(T.KEYWORD, 'return');
     let expr = null;
@@ -281,9 +357,18 @@ class Parser {
   parseExpression() {
     // Top level: Assignment
     const left = this.parseLogicalOr();
-    if (this.lex.match(T.OP, '=')) {
+    const p = this.lex.peek();
+    if (p.type === T.OP && ['=', '+=', '-=', '*=', '/=', '%='].includes(p.value)) {
+      const op = this.lex.consume().value;
       if (left.type !== 'Identifier') throw new Error('Invalid LHS');
-      const right = this.parseExpression();
+      let right = this.parseExpression();
+      
+      if (op !== '=') {
+        // Desugar compound assignment: a += b  =>  a = a + b
+        const binOp = op.slice(0, -1);
+        right = { type: 'BinaryOp', op: binOp, left, right };
+      }
+      
       return { type: 'Assignment', lhs: left.value, rhs: right };
     }
     return left;

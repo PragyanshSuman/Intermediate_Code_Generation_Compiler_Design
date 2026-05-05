@@ -112,7 +112,6 @@ router.post('/compile', async (req, res) => {
       optimizedTac: optimizedTac.map((instr, i) => ({ step: instr.step, result: instr.result ?? '-', op1: instr.op1 ?? '-', operator: instr.operator, op2: instr.op2 ?? '-', tacString: optimizedTacStrings[i] || '' })),
       assembly,
       tokens,
-      optimizedTac: optimizedTac.map((instr, i) => ({ step: instr.step, result: instr.result ?? '-', op1: instr.op1 ?? '-', operator: instr.operator, op2: instr.op2 ?? '-', tacString: optimizedTacStrings[i] || '' })),
       assembly,
       expression: expression.trim(),
       ast,
@@ -128,7 +127,6 @@ router.post('/compile', async (req, res) => {
       triples:    ir.triples,
       indirectTriples: {
         pointerArray: ir.indirectTriples.pointerArray,
-        triples:      ir.indirectTriples.triples,
       },
     });
   } catch (dbErr) {
